@@ -13,25 +13,18 @@ public:
     void run(const MatchFinder::MatchResult &Result) override {
         const auto *Use = Result.Nodes.getNodeAs<DeclRefExpr>("movedFromUse");
         if (!Use) return;
-
         auto &SM = *Result.SourceManager;
         if (!SM.isInMainFile(Use->getBeginLoc())) return;
-
-        // Guard: only use identifier names
         if (!Use->getDecl()->getDeclName().isIdentifier()) return;
-
         auto Loc = SM.getPresumedLoc(Use->getBeginLoc());
         if (!Loc.isValid()) return;
-
         llvm::errs() << Loc.getFilename() << ":" << Loc.getLine()
-                     << ": [HSCBC.6.3] Object '"
-                     << Use->getDecl()->getName()
-                     << "' used after being moved\n";
+                     << ": [HSCBC.6.3] '" << Use->getDecl()->getName()
+                     << "' is used after std::move(). Its value is now unknown."
+                     << " Don't use a moved-from object.\n";
     }
 };
-
 static MovedFromStateCallback Callback;
-
 } // namespace
 
 void registerMovedFromStateCheck(MatchFinder &Finder) {

@@ -15,17 +15,12 @@ public:
         const auto *Ctor = Result.Nodes.getNodeAs<CXXConstructorDecl>("ctor");
         if (!Ctor || !Ctor->doesThisDeclarationHaveABody()) return;
         if (Ctor->isDelegatingConstructor()) return;
-
         auto &SM = *Result.SourceManager;
         if (!SM.isInMainFile(Ctor->getBeginLoc())) return;
-
         const auto *Class = Ctor->getParent();
-
         for (const auto &Base : Class->bases()) {
             const auto *BaseDecl = Base.getType()->getAsCXXRecordDecl();
-            if (!BaseDecl) continue;
-            if (BaseDecl->isEmpty()) continue;
-
+            if (!BaseDecl || BaseDecl->isEmpty()) continue;
             bool found = false;
             for (const auto *Init : Ctor->inits()) {
                 if (Init->isBaseInitializer() && Init->isWritten()) {
@@ -36,28 +31,24 @@ public:
                     }
                 }
             }
-
             if (!found) {
                 auto Loc = SM.getPresumedLoc(Ctor->getBeginLoc());
                 if (!Loc.isValid()) return;
-                // Guard getName()
                 std::string baseName = BaseDecl->getDeclName().isIdentifier()
                     ? BaseDecl->getName().str() : "<unnamed>";
                 llvm::errs() << Loc.getFilename() << ":" << Loc.getLine()
                              << ": [HSCAP.1.2] Constructor does not explicitly"
-                             << " initialise base class '" << baseName << "'\n";
+                             << " initialise base class '" << baseName << "'."
+                             << " The compiler will silently call the default"
+                             << " constructor which may not be what you intended."
+                             << " Add '" << baseName << "()' to the initialiser list.\n";
             }
         }
     }
 };
-
 static ExplicitBaseInitCallback Callback;
-
 } // namespace
 
 void registerExplicitBaseInitCheck(MatchFinder &Finder) {
-    Finder.addMatcher(
-        cxxConstructorDecl(isDefinition()).bind("ctor"),
-        &Callback
-    );
+    Finder.addMatcher(cxxConstructorDecl(isDefinition()).bind("ctor"), &Callback);
 }

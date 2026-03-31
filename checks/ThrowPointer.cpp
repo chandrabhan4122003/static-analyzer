@@ -13,27 +13,22 @@ public:
     void run(const MatchFinder::MatchResult &Result) override {
         const auto *Throw = Result.Nodes.getNodeAs<CXXThrowExpr>("throwPtr");
         if (!Throw) return;
-
         auto &SM = *Result.SourceManager;
-        if (SM.isInSystemHeader(Throw->getBeginLoc())) return;
-
+        if (!SM.isInMainFile(Throw->getBeginLoc())) return;
         auto Loc = SM.getPresumedLoc(Throw->getBeginLoc());
         if (!Loc.isValid()) return;
-
         llvm::errs() << Loc.getFilename() << ":" << Loc.getLine()
-                     << ": [HSCAS.1.1] Exception object shall not have pointer type\n";
+                     << ": [HSCAS.1.1] Throwing a pointer as an exception is unsafe."
+                     << " It is unclear who is responsible for deleting it."
+                     << " Throw by value instead: throw MyException(\"message\");\n";
     }
 };
-
 static ThrowPointerCallback Callback;
-
 } // namespace
 
 void registerThrowPointerCheck(MatchFinder &Finder) {
     Finder.addMatcher(
-        cxxThrowExpr(
-            has(expr(hasType(pointerType())))
-        ).bind("throwPtr"),
+        cxxThrowExpr(has(expr(hasType(pointerType())))).bind("throwPtr"),
         &Callback
     );
 }

@@ -14,21 +14,21 @@ public:
     void run(const MatchFinder::MatchResult &Result) override {
         const auto *Call = Result.Nodes.getNodeAs<CallExpr>("unusedCall");
         if (!Call) return;
-
         auto &SM = *Result.SourceManager;
-        // Skip system headers
-        if (SM.isInSystemHeader(Call->getBeginLoc())) return;
-
+        if (!SM.isInMainFile(Call->getBeginLoc())) return;
         auto Loc = SM.getPresumedLoc(Call->getBeginLoc());
         if (!Loc.isValid()) return;
-
+        std::string funcName = "unknown";
+        if (const auto *FD = Call->getDirectCallee())
+            if (FD->getDeclName().isIdentifier())
+                funcName = FD->getName().str();
         llvm::errs() << Loc.getFilename() << ":" << Loc.getLine()
-                     << ": [HSCAA.1.2] Return value of function call is discarded\n";
+                     << ": [HSCAA.1.2] Return value of '" << funcName
+                     << "()' is silently discarded. If intentional, use (void)"
+                     << funcName << "() to make it explicit.\n";
     }
 };
-
 static UnusedReturnValueCallback Callback;
-
 } // namespace
 
 void registerUnusedReturnValueCheck(MatchFinder &Finder) {

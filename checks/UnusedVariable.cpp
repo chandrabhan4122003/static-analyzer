@@ -14,33 +14,23 @@ public:
     void run(const MatchFinder::MatchResult &Result) override {
         const auto *Var = Result.Nodes.getNodeAs<VarDecl>("unusedVar");
         if (!Var) return;
-
         auto &SM = *Result.SourceManager;
         if (!SM.isInMainFile(Var->getBeginLoc())) return;
-
-        // Skip if marked [[maybe_unused]]
         if (Var->hasAttr<UnusedAttr>()) return;
-
-        // Skip if referenced
         if (Var->isReferenced()) return;
-
-        // Skip if has user-provided constructor/destructor (RAII)
-        if (const auto *RD = Var->getType()->getAsCXXRecordDecl()) {
+        if (const auto *RD = Var->getType()->getAsCXXRecordDecl())
             if (RD->hasUserProvidedDefaultConstructor() || !RD->hasTrivialDestructor())
                 return;
-        }
-
         auto Loc = SM.getPresumedLoc(Var->getBeginLoc());
         if (!Loc.isValid()) return;
-
         llvm::errs() << Loc.getFilename() << ":" << Loc.getLine()
                      << ": [HSCAA.2.1] Variable '" << Var->getName()
-                     << "' has limited visibility but is never used\n";
+                     << "' is declared but never used. This may indicate an"
+                     << " incomplete computation or leftover code. Remove it"
+                     << " or mark [[maybe_unused]] if intentional.\n";
     }
 };
-
 static UnusedVariableCallback Callback;
-
 } // namespace
 
 void registerUnusedVariableCheck(MatchFinder &Finder) {

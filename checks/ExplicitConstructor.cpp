@@ -13,33 +13,30 @@ class ExplicitConstructorCallback : public MatchFinder::MatchCallback {
 public:
     void run(const MatchFinder::MatchResult &Result) override {
         auto &SM = *Result.SourceManager;
-
         if (const auto *Ctor = Result.Nodes.getNodeAs<CXXConstructorDecl>("implicitCtor")) {
             if (!SM.isInMainFile(Ctor->getBeginLoc())) return;
             auto Loc = SM.getPresumedLoc(Ctor->getBeginLoc());
             if (!Loc.isValid()) return;
             llvm::errs() << Loc.getFilename() << ":" << Loc.getLine()
-                         << ": [HSCAP.1.3] Constructor callable with single argument"
-                         << " shall be explicit\n";
+                         << ": [HSCAP.1.3] Constructor callable with a single argument"
+                         << " should be marked 'explicit' to prevent accidental implicit"
+                         << " conversions. Add 'explicit' before the constructor.\n";
             return;
         }
-
         if (const auto *Conv = Result.Nodes.getNodeAs<CXXConversionDecl>("implicitConv")) {
             if (!SM.isInMainFile(Conv->getBeginLoc())) return;
             auto Loc = SM.getPresumedLoc(Conv->getBeginLoc());
             if (!Loc.isValid()) return;
             llvm::errs() << Loc.getFilename() << ":" << Loc.getLine()
-                         << ": [HSCAP.1.3] Conversion operator shall be explicit\n";
+                         << ": [HSCAP.1.3] Conversion operator should be marked 'explicit'"
+                         << " to prevent unintended implicit type conversions.\n";
         }
     }
 };
-
 static ExplicitConstructorCallback Callback;
-
 } // namespace
 
 void registerExplicitConstructorCheck(MatchFinder &Finder) {
-    // Single argument constructor not marked explicit
     Finder.addMatcher(
         cxxConstructorDecl(
             unless(isExplicit()),
@@ -49,7 +46,6 @@ void registerExplicitConstructorCheck(MatchFinder &Finder) {
         ).bind("implicitCtor"),
         &Callback
     );
-    // Constructor with defaults making it callable with one arg
     Finder.addMatcher(
         cxxConstructorDecl(
             unless(isExplicit()),
@@ -60,11 +56,8 @@ void registerExplicitConstructorCheck(MatchFinder &Finder) {
         ).bind("implicitCtor"),
         &Callback
     );
-    // Conversion operator not marked explicit
     Finder.addMatcher(
-        cxxConversionDecl(
-            unless(isExplicit())
-        ).bind("implicitConv"),
+        cxxConversionDecl(unless(isExplicit())).bind("implicitConv"),
         &Callback
     );
 }
